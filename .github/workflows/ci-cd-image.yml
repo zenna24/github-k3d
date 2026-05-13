@@ -1,0 +1,39 @@
+name: Build, Push and Deploy to K3D
+run-name: Build, Push and Deploy to KD
+on: [push]
+env:
+  IMAGE_NAME: "${{ secrets.DOCKER_USER }}/nginx-k3d"
+jobs:
+  build-push-image:
+    runs-on: self-hosted
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - name: Build Image
+        run: docker build -t $IMAGE_NAME .
+      - name: List Image
+        run: docker images
+      - name: Login to Docker Registry
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_PASS }}
+      - name: Push Image
+        run: docker push $IMAGE_NAME
+
+  deploy-k3d:
+    needs: build-push-image
+    runs-on: self-hosted
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - name: Replace variables in the template and output to deployment.yaml
+        run: envsubst < webserver.yaml.template > webserver.yaml
+      - name: Create deployment
+        run: kubectl apply -f webserver.yaml
+      - name: View deployment
+        run: kubectl get deployments
+      - name: Create service
+        run: kubectl apply -f webserver-svc.yaml
+      - name: View service
+        run: kubectl get services
